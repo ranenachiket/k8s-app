@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: kafka
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: kafka
+  name: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: kafka
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      namespace: kafka
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: kafka
+    spec:
+      containers:
+        - env:
+            - name: CLUSTER_ID
+              value: fNmrFBcWRWSfj62QmSrfkw
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: PLAINTEXT://$(POD_NAME).kafka-headless.kafka.svc.cluster.local:9092,CONTROLLER://$(POD_NAME).kafka-headless.kafka.svc.cluster.local:9093
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: 1@kafka-0.kafka-headless.kafka.svc.cluster.local:9093
+            - name: KAFKA_KRAFT_MODE
+              value: "true"
+            - name: KAFKA_LISTENERS
+              value: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+            - name: KAFKA_LOG_DIR
+              value: /tmp/kafka-logs
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_OFFSET_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_PROCESS_ROLE
+              value: broker,controller
+          image: confluentinc/cp-kafka:7.8.3
+          name: kafka
+          ports:
+            - containerPort: 9092
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /var/lib/kafka/data
+              name: kafka-data
+      restartPolicy: Always
+      volumes:
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: kafka-data

@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: kafka
+spec:
+  serviceName: kafka-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      serviceAccountName: kafka
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:latest
+        ports:
+        - containerPort: 9092
+          name: broker
+        - containerPort: 9093
+          name: controller
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+#        - name: KAFKA_BROKER_ID
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.name
+#        - name: KAFKA_NODE_ID
+#          valueFrom:
+#            fieldRef:
+#              fieldPath: metadata.name
+        - name: KAFKA_PROCESS_ROLES
+          value: "broker,controller"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+        - name: KAFKA_OFFSET_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        - name: KAFKA_CFG_DEFAULT_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_CFG_MIN_INSYNC_REPLICAS
+          value: "1"
+        - name: KAFKA_CONTROLLER_LISTENER_NAMES
+          value: "CONTROLLER"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka-0.kafka-headless.kafka.svc.cluster.local:9092"
+        - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+          value: "0@kafka-0.kafka-headless.kafka.svc.cluster.local:9093"
+        - name: KAFKA_CLUSTER_ID
+          value: "fNmrFBcWRWSfj62QmSrfkw"  # Replace with actual cluster id created by kafka-storage.sh or your tool
+        - name: KAFKA_LOG_DIR
+          value: /tmp/kafka-logs
+        - name: KAFKA_KRAFT_MODE
+          value: "true"
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /var/lib/kafka/data
+        command:
+          - "sh"
+          - "-c"
+          - |
+            export KAFKA_BROKER_ID=$(echo ${POD_NAME##*-})
+            export KAFKA_NODE_ID=$(echo ${POD_NAME##*-})
+            exec /etc/confluent/docker/run
+#      volumeClaimTemplates:
+#        - metadata:
+#            name: kafka-storage
+#          spec:
+#            accessModes: [ "ReadWriteOnce" ]
+#            storageClassName: your-storage-class
+#            resources:
+#              requests:
+#                storage: 5Gi
+      volumes:
+      - name: kafka-data
+        persistentVolumeClaim:
+          claimName: kafka-pvc
+      securityContext:
+        runAsUser: 1001
+        fsGroup: 1001
+      initContainers:
+        - name: init-permissions
+          image: busybox
+          command: [ "sh", "-c", "chown -R 1001:1001 /var/lib/kafka/data" ]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: kafka-data
+              mountPath: /var/lib/kafka/data

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nettools-deployment
+  namespace: debug
+  labels:
+    app: nettools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nettools
+  template:
+    metadata:
+      labels:
+        app: nettools
+    spec:
+      containers:
+      - name: nettools
+        image: jonlabelle/network-tools
+        command: ["tail", "-f", "/dev/null"]
