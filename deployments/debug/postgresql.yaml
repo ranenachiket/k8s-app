@@ -1,0 +1,62 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: debug
+type: Opaque
+stringData:
+  host: "192.168.87.33"        # e.g., mydb.abc123.us-west-1.rds.amazonaws.com
+  username: "admin"                  # or your DB username
+  password: "admin"
+  database: "orders"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-client
+  namespace: debug
+  labels:
+    app: postgres-client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-client
+  template:
+    metadata:
+      labels:
+        app: postgres-client
+    spec:
+      containers:
+      - name: postgres-client
+        image: postgres:15
+        command: ["sleep", "infinity"]  # Keeps the pod running so you can exec into it
+        env:
+        - name: PGHOST
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: host
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: database
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"

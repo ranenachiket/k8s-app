@@ -1,0 +1,33 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orders-service
+  namespace: app
+  annotations:
+    konghq.com/strip-path: "true"
+spec:
+  ingressClassName: kong
+  rules:
+  # ---- Host-based rule (for kong.local) ----
+  - host: kong.local
+    http:
+      paths:
+      - path: /orders
+        pathType: Prefix
+        backend:
+          service:
+            name: orders
+            port:
+              number: 80
+
+  # ---- Fallback rule (for IP access) ----
+  - http:
+      paths:
+      - path: /orders
+        pathType: Prefix
+        backend:
+          service:
+            name: orders
+            port:
+              number: 80

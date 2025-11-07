@@ -1,0 +1,8 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongIngress
+metadata:
+  name: orders-overrides
+upstream:
+  retries: 0
+  connect_timeout: 3000
+  read_timeout: 10000

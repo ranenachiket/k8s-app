@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: app
+  labels:
+    environment: dev
 ---
 apiVersion: v1
 kind: Namespace
@@ -9,3 +11,9 @@ metadata:
   name: debug
   labels:
     environment: debug
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kong
+---

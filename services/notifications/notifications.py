@@ -2,7 +2,9 @@
 from confluent_kafka import Consumer, TopicPartition
 import logging
 import sys
-sys.stdout.flush()
+import json
+import psycopg2
+sys.stdout.flush() # To flush the print output to the kubectl log - not working
 
 log_handler = logging.FileHandler('notifications.log', encoding='utf-8')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -13,7 +15,56 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(log_handler)
 
 
-def notifications():
+def database_conn():
+    # Postgres Config
+    PG_HOST = '192.168.87.33'
+    PG_PORT = '5432'
+    PG_USER = 'postgres'
+    PG_PASSWORD = 'postgres'
+    PG_DATABASE = 'app'
+
+    # Connect to Postgres
+
+    db_conn = psycopg2.connect(
+        host=PG_HOST,
+        port=PG_PORT,
+        user=PG_USER,
+        password=PG_PASSWORD,
+        dbname=PG_DATABASE
+    )
+    logger.info(f'Connecting to Database')
+    cursor = db_conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS orders (
+        row_id SERIAL PRIMARY KEY,
+        order_id TEXT,
+        username TEXT,
+        item TEXT,
+        quantity NUMERIC,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    db_conn.commit()
+    logger.info(f'Connected to Database')
+    return db_conn, cursor
+
+
+def write_to_db(db_conn, cursor, message):
+    try:
+        logger.info(f"Writing message to db: {message}")
+        cursor.execute(
+            "INSERT INTO orders (order_id, username, item, quantity) VALUES (%s, %s, %s, %s);",
+            (message['order_id'], message['user'], message['item'], message['quantity'])
+        )
+        db_conn.commit()
+        logger.info(f"Successfully Written message to db: {message}")
+    except Exception as e:
+        logger.error("DB insert error:", e)
+        db_conn.rollback()
+
+
+def notifications(db_conn, cursor):
     logger.info('=' * 100)
     logger.info('Initializing consumer')
     kafka_endpoint = 'kafka-0.kafka-headless.kafka.svc.cluster.local:9092'
@@ -46,8 +97,13 @@ def notifications():
                 print(f"Consumer error: {msg.error()}")
                 logger.error(f"Consumer error: {msg.error()}")
             else:
-                print(f"Received message: {msg.value().decode('utf-8')}")
-                logger.info(f"Received message: {msg.value().decode('utf-8')}")
+                raw_message = msg.value().decode('utf-8')
+                data = json.loads(raw_message)
+                print(f"Received message: {data}")
+                logger.info(f"Received message: {data}")
+                write_to_db(db_conn, cursor, data)
+
+
     except Exception as e:
         print(f"Error polling Kafka: {e}")
         logger.error(f"Error polling Kafka: {e}")
@@ -59,6 +115,7 @@ def notifications():
 
 if __name__ == '__main__':
     try:
-        notifications()
+        db_conn, cursor = database_conn()
+        notifications(db_conn, cursor)
     except KeyboardInterrupt:
         logger.info('orders service terminated')
