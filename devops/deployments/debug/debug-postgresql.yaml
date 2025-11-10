@@ -6,8 +6,8 @@ metadata:
   namespace: debug
 type: Opaque
 stringData:
-  host: "192.168.87.33"        # e.g., mydb.abc123.us-west-1.rds.amazonaws.com
-  username: "admin"                  # or your DB username
+  host: "192.168.87.33"
+  username: "admin"
   password: "admin"
   database: "orders"
 ---
@@ -31,7 +31,7 @@ spec:
       containers:
       - name: postgres-client
         image: postgres:15
-        command: ["sleep", "infinity"]  # Keeps the pod running so you can exec into it
+        command: ["sleep", "infinity"]
         env:
         - name: PGHOST
           valueFrom:
