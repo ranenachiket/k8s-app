@@ -5,6 +5,7 @@ from random import choice
 import uuid, time
 import json
 import psycopg2
+import psycopg2.extras
 import logging
 import sys
 sys.stdout.flush()
@@ -51,6 +52,7 @@ def database_conn():
         dbname=PG_DATABASE
     )
     logger.info(f'Connecting to Database')
+    # cursor = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     cursor = db_conn.cursor()
 
     logger.info(f'Connected to Database')
@@ -128,6 +130,59 @@ def orders_get(order_id):
 
     except Exception as e:
         print("Error:", e)
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/requests', methods=['GET'])
+def orders_all():
+    pass
+
+
+@app.route('/count/<count>', methods=['GET'])
+def orders_all(count):
+    try:
+        conn, cursor = database_conn()
+        # cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        # Fetch row by ID
+        if count == 'all':
+            query = f"SELECT * FROM orders;"
+        else:
+            query = f"SELECT * FROM orders ORDER BY created_at DESC LIMIT {count};"
+
+        logger.info(f'Fetching from the database, Executing the db query.')
+        cursor.execute(query)
+        orders = cursor.fetchall() # Returns Tuple of values
+        logger.info(f'Fetching from the database successful.')
+
+        # Close the db connections cleanly
+        cursor.close()
+        conn.close()
+
+        if orders is None:
+            return jsonify({"error": "Order not found"}), 404
+
+        # Convert to list of dict
+        logger.info(f'Formatting and returning data in json.')
+
+        ## Time consuming process... needs to be optimized.
+        # # Convert to list of dicts
+        # latest_orders = [dict(order) for order in orders]
+        # return jsonify(latest_orders), 200
+
+        # Following will be a slow process and will black the get request until timeout.
+        orders_list = list()
+        for order in orders:
+            order_data = {
+                "order_id": order[1],
+                "username": order[2],
+                "item": order[3],
+                "quantity": order[4],
+            }
+            orders_list.append(order_data)
+        return jsonify(orders_list), 200
+
+    except Exception as e:
+        logger.error("Error:", e)
         return jsonify({"error": str(e)}), 500
 
 

@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    kubernetes.io/ingress.class: "kong"
+    konghq.com/strip-path: "false"
+    konghq.com/protocols: "http"
+    konghq.com/preserve-host: "true"
+    konghq.com/force-ssl-redirect: "false"
+    konghq.com/response-buffering: "false"
+    konghq.com/request-buffering: "false"
+    konghq.com/read-timeout: "100000"
+    konghq.com/send-timeout: "100000"
+    konghq.com/connect-timeout: "10000"
+spec:
+  ingressClassName: kong
+  rules:
+  - host: argocd.kong.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: argocd-server
+            port:
+              number: 80
