@@ -1,0 +1,22 @@
+apiVersion: argoproject.io/v1alpha
+kind: Application
+metadata:
+  name: k8s-debug
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ranenachiket/k8s-app
+    targetRevision: HEAD
+    path: devops/deployments/debug
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: debug
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+
+    automated:
+      selfHeal: true
+      prune: true

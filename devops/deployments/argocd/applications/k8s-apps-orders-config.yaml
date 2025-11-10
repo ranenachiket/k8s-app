@@ -1,0 +1,22 @@
+apiVersion: argoproject.io/v1alpha
+kind: Application
+metadata:
+  name: myapp-argo-application
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ranenachiket/k8s-app
+    targetRevision: HEAD
+    path: devops/deployments/notifications
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+
+    automated:
+      selfHeal: true
+      prune: true
