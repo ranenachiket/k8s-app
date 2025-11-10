@@ -1,4 +1,4 @@
-#Creating raspberry pi as a postgres db server
+#Creating raspberry pi4 as a postgres db server
 
 Step 1: Install PostgreSQL
 sudo apt install postgresql postgresql-contrib -y
