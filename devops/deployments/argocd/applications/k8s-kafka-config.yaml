@@ -1,17 +1,17 @@
 apiVersion: argoproject.io/v1alpha
 kind: Application
 metadata:
-  name: k8s-debug
+  name: k8s-kafka
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/ranenachiket/k8s-app
     targetRevision: HEAD
-    path: devops/deployments/debug
+    path: devops/deployments/kafka/kafka
   destination:
     server: https://kubernetes.default.svc
-    namespace: debug
+    namespace: kafka
 
   syncPolicy:
     syncOptions:

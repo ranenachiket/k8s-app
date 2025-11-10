@@ -1,14 +1,14 @@
 apiVersion: argoproject.io/v1alpha
 kind: Application
 metadata:
-  name: myapp-argo-application
+  name: k8s-app-orders
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/ranenachiket/k8s-app
     targetRevision: HEAD
-    path: devops/deployments/notifications
+    path: devops/deployments/orders
   destination:
     server: https://kubernetes.default.svc
     namespace: app

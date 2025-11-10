@@ -12,14 +12,13 @@ You can use kubectl or Helm
 🅰️ Option 1 — Using kubectl (simplest)
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-
 ———————————————————————————
 🅱️ Option 2 — Using Helm (more flexible)
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 helm install argocd argo/argo-cd -n argocd
 
-
+----- output -------
 helm install argocd argo/argo-cd -n argocd
 NAME: argocd
 LAST DEPLOYED: Sat Nov  8 15:36:59 2025
@@ -42,8 +41,8 @@ After reaching the UI the first time you can login with username: admin and the 
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 
 (You should delete the initial secret afterwards as suggested by the Getting Started Guide: https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli)
+-----------------------------
 
-—————————————————————————————————————
 Step 3: Expose the Argo CD UI
 Option A — Port-forward
 kubectl port-forward svc/argocd-server -n argocd 8080:443
@@ -52,8 +51,8 @@ Then open in browser: https://localhost:8080
 Option B — NodePort (if you prefer static access)
 kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
 kubectl get svc argocd-server -n argocd
-
 Note the NodePort (e.g. 32000), then open: https://<worker-node-ip>:<nodeport>
+
 
 Step 4: Get the initial admin password
 kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d; echo
