@@ -70,9 +70,9 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
                     sh '''#!/bin/bash
                         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG}
-                        docker tag ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
-                        docker push ${DOCKERHUB_USER}/app-${SERVICE}:latest
+                        docker push ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG}
+                        docker tag ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_CREDS_USR}/${SERVICE}:latest
+                        docker push ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:latest
                         docker logout
                     '''
                 }
@@ -100,7 +100,7 @@ pipeline {
                     '''
                 }
             }
-            echo "✅ Successfully built and pushed ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG}"
+            echo "✅ Successfully built and pushed ${DOCKERHUB_CREDS_USR}/${params.SERVICE}:${IMAGE_TAG}"
         }
 
         failure {
