@@ -107,10 +107,10 @@ pipeline {
                       git commit -m "Bump version to $(cat VERSION) [ci skip] and update deployment file image tag" || true
                       git push origin HEAD:main || true
                     '''
+                }
+                echo "✅ Successfully built and pushed ${DOCKERHUB_CREDS_USR}/${params.SERVICE}:${IMAGE_TAG}"
             }
-            echo "✅ Successfully built and pushed ${DOCKERHUB_CREDS_USR}/${params.SERVICE}:${IMAGE_TAG}"
         }
-
         failure {
             echo "❌ Build failed — skipping version file update"
         }
