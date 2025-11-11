@@ -29,7 +29,7 @@ pipeline {
             }
         }
 
-        stage('Increment ${params.SERVICE} Version') {
+        stage('Calculate Next Version') {
             steps {
                 dir("apps/${params.SERVICE}") {
                     script {
@@ -46,35 +46,19 @@ pipeline {
                             patch += 1
                         }
 
-                        def newVersion = "v${major}.${minor}.${patch}"
-                        echo "🔢 New version: ${newVersion}"
-                        env.IMAGE_TAG = newVersion
+                        env.IMAGE_TAG = "v${major}.${minor}.${patch}"
+                        echo "🔢 Calculated new version: ${env.IMAGE_TAG}"
                     }
                 }
             }
         }
+
         stage('Build Docker Image') {
             steps {
                 dir("apps/${params.SERVICE}") {
-                    sh "ls -ltr; docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
-                }
-            }
-        }
-        stage('Push version file to github') {
-            steps {
-                dir("apps/${params.SERVICE}") {
-                    // Write updated version to file and commit
-                    echo 'Writing New version: ${newVersion} to file env.VERSION_FILE at $(pwd)'
-                    writeFile file: env.VERSION_FILE, text: newVersion + '\n'
-                    checkout scm
-                    sh '''
-                      git config --global --add safe.directory "$PWD"
-                      git config user.email "jenkins@local"
-                      git config user.name "Jenkins"
-                      git remote set-url origin ${GITHUB_REPO}
-                      git add VERSION
-                      git commit -m "Bump version to ${newVersion}" || true
-                      git push origin HEAD:main || true
+                    sh '''#!/bin/bash
+                    echo "🏗️ Building image ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} in $(pwd)"
+                    docker build -t ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} .
                     '''
                 }
             }
@@ -83,13 +67,13 @@ pipeline {
         stage('Push to DockerHub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-token', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
-                    sh """
+                    sh '''#!/bin/bash
                         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
                         docker push ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG}
                         docker tag ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
                         docker push ${DOCKERHUB_USER}/${SERVICE}:latest
                         docker logout
-                    """
+                    '''
                 }
             }
         }
@@ -97,10 +81,29 @@ pipeline {
 
     post {
         success {
+            echo "✅ Build succeeded — committing VERSION file update"
+            dir("apps/${params.SERVICE}") {
+                script {
+                    // Write version only after success
+                    writeFile file: env.VERSION_FILE, text: "${env.IMAGE_TAG}\n"
+                }
+                withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                    sh '''#!/bin/bash
+                      git config --global --add safe.directory "$PWD"
+                      git config user.email "jenkins@local"
+                      git config user.name "Jenkins CI"
+                      git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/ranenachiket/k8s-app.git
+                      git add VERSION
+                      git commit -m "Bump version to $(cat VERSION) [ci skip]" || true
+                      git push origin HEAD:main || true
+                    '''
+                }
+            }
             echo "✅ Successfully built and pushed ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG}"
         }
+
         failure {
-            echo "❌ Build failed."
+            echo "❌ Build failed — skipping version file update"
         }
     }
 }
