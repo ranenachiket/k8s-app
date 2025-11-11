@@ -58,7 +58,7 @@ pipeline {
             steps {
                 dir("apps/${params.SERVICE}") {
                     sh '''#!/bin/bash
-                    echo "Building image ${DOCKER_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} in $(pwd)"
+                    echo "Building image ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} in $(pwd)"
                     docker build -t ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} .
                     '''
                 }
