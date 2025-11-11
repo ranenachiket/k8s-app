@@ -92,7 +92,7 @@ pipeline {
                 }
                 // Updating the deployment file image tag.
                 sh """
-                    sed -i "s|image: ${DOCKERHUB_REPO}:.*|image: ${REPO}:${IMAGE_TAG}|" ${DEPLOYMENT_FILE}
+                    sed -i "s|image: ${DOCKERHUB_REPO}:.*|image: ${DOCKERHUB_REPO}:${IMAGE_TAG}|" ${DEPLOYMENT_FILE}
                 """
                 // Commit and push file changes to github.
                 sh "git diff ${DEPLOYMENT_FILE} || true"
