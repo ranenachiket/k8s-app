@@ -16,7 +16,8 @@ pipeline {
 
     environment {
         GITHUB_REPO = 'https://github.com/ranenachiket/k8s-app.git'
-        DOCKERHUB_USER = 'ranenachiket07'
+        DOCKERHUB_USER = credentials('dockerhub-creds')
+        GITHUB_USER = credentials('github-creds')
         VERSION_FILE = 'VERSION'
     }
 
@@ -47,7 +48,7 @@ pipeline {
                         }
 
                         env.IMAGE_TAG = "v${major}.${minor}.${patch}"
-                        echo "🔢 Calculated new version: ${env.IMAGE_TAG}"
+                        echo "Calculated new version: ${env.IMAGE_TAG}"
                     }
                 }
             }
@@ -57,8 +58,8 @@ pipeline {
             steps {
                 dir("apps/${params.SERVICE}") {
                     sh '''#!/bin/bash
-                    echo "🏗️ Building image ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} in $(pwd)"
-                    docker build -t ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} .
+                    echo "Building image ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG} in $(pwd)"
+                    docker build -t ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG} .
                     '''
                 }
             }
@@ -69,9 +70,9 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
                     sh '''#!/bin/bash
                         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG}
-                        docker tag ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
-                        docker push ${DOCKERHUB_USER}/${SERVICE}:latest
+                        docker push ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG}
+                        docker tag ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
+                        docker push ${DOCKERHUB_USER}/app-${SERVICE}:latest
                         docker logout
                     '''
                 }
