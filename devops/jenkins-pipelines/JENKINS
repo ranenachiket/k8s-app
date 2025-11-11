@@ -47,17 +47,6 @@ pipeline {
 
                     def newVersion = "v${major}.${minor}.${patch}"
                     echo "🔢 New version: ${newVersion}"
-
-                    // Save back to file and commit (optional)
-                    writeFile file: env.VERSION_FILE, text: newVersion + '\n'
-                    sh '''
-                      git config user.email "jenkins@local"
-                      git config user.name "Jenkins"
-                      git add VERSION
-                      git commit -m "Bump version to ${newVersion}" || true
-                      git push origin HEAD:main || true
-                    '''
-
                     env.IMAGE_TAG = newVersion
                 }
             }
@@ -67,6 +56,18 @@ pipeline {
             steps {
                 dir("${params.SERVICE}") {
                     sh "docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
+                    // Save back to file and commit (optional)
+                    writeFile file: env.VERSION_FILE, text: newVersion + '\n'
+                    checkout scm
+                    sh '''
+                      git config --global --add safe.directory "$PWD"
+                      git config user.email "jenkins@local"
+                      git config user.name "Jenkins"
+                      git remote set-url origin ${GITHUB_REPO}
+                      git add VERSION
+                      git commit -m "Bump version to ${newVersion}" || true
+                      git push origin HEAD:main || true
+                    '''
                 }
             }
         }
