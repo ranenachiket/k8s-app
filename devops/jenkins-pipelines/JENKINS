@@ -55,7 +55,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir("${params.SERVICE}") {
-                    sh "echo $(pwd); cd apps/${SERVICE}; docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
+                    sh 'echo $(pwd); cd apps/${SERVICE}; docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} .'
                     // Save back to file and commit (optional)
                     writeFile file: env.VERSION_FILE, text: newVersion + '\n'
                     checkout scm
