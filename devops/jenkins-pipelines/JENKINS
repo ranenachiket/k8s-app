@@ -94,7 +94,6 @@ pipeline {
                 sh """
                     sed -i "s|image: ${DOCKERHUB_REPO}:.*|image: ${DOCKERHUB_REPO}:${IMAGE_TAG}|" ${DEPLOYMENT_FILE}
                 """
-                }
 
                 // Commit and push file changes to github.
                 sh "git diff ${DEPLOYMENT_FILE} || true"
@@ -108,7 +107,6 @@ pipeline {
                       git commit -m "Bump version to $(cat VERSION) [ci skip] and update deployment file image tag" || true
                       git push origin HEAD:main || true
                     '''
-                }
             }
             echo "✅ Successfully built and pushed ${DOCKERHUB_CREDS_USR}/${params.SERVICE}:${IMAGE_TAG}"
         }
