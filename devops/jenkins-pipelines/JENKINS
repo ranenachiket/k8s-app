@@ -64,6 +64,7 @@ pipeline {
             steps {
                 dir("apps/${params.SERVICE}") {
                     // Write updated version to file and commit
+                    echo "Writing New version: ${newVersion} to file env.VERSION_FILE at $(pwd)"
                     writeFile file: env.VERSION_FILE, text: newVersion + '\n'
                     checkout scm
                     sh '''
