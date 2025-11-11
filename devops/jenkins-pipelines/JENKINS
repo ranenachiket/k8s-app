@@ -55,7 +55,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir("${params.SERVICE}") {
-                    sh "docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
+                    sh "sudo docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
                     // Save back to file and commit (optional)
                     writeFile file: env.VERSION_FILE, text: newVersion + '\n'
                     checkout scm
@@ -74,13 +74,13 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-token', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: 'sudo dockerhub-token', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
                     sh """
-                        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG}
-                        docker tag ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
-                        docker push ${DOCKERHUB_USER}/${SERVICE}:latest
-                        docker logout
+                        echo $DOCKER_TOKEN | sudo docker login -u $DOCKER_USER --password-stdin
+                        sudo docker push ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG}
+                        sudo docker tag ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
+                        sudo docker push ${DOCKERHUB_USER}/${SERVICE}:latest
+                        sudo docker logout
                     """
                 }
             }
