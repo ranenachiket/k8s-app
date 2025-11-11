@@ -29,7 +29,7 @@ pipeline {
             }
         }
 
-        stage('Increment Version') {
+        stage('Increment ${params.SERVICE} Version') {
             steps {
                 script {
                     // Read current version (default to v0.0.0 if missing)
@@ -51,12 +51,17 @@ pipeline {
                 }
             }
         }
-
         stage('Build Docker Image') {
             steps {
                 dir("apps/${params.SERVICE}") {
                     sh "ls -ltr; docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
-                    // Save back to file and commit (optional)
+                }
+            }
+        }
+        stage('Push version file to github') {
+            steps {
+                dir("apps/${params.SERVICE}") {
+                    // Write updated version to file and commit
                     writeFile file: env.VERSION_FILE, text: newVersion + '\n'
                     checkout scm
                     sh '''
