@@ -18,7 +18,7 @@ pipeline {
         GITHUB_REPO = 'https://github.com/ranenachiket/k8s-app.git'
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
         GITHUB_USER = credentials('github-creds')
-        VERSION_FILE = 'VERSION'
+        VERSION_FILE = 'VERSION.txt'
         DOCKERHUB_REPO = "ranenachiket07/app-${SERVICE}"
         DEPLOYMENT_FILE = "${SERVICE}-deployment.yaml"
     }
@@ -85,15 +85,17 @@ pipeline {
     post {
         success {
             echo "✅ Build succeeded — committing VERSION file update and deployment file image tag update."
-            dir("apps/${params.SERVICE}") {
+            dir("devops/deployments/${params.SERVICE}") {
                 // Write version only after success
                 script {
                     writeFile file: env.VERSION_FILE, text: "${env.IMAGE_TAG}\n"
                 }
                 // Updating the deployment file image tag.
                 sh """
-                    sed -i "s|image: ${DOCKERHUB_REPO}:.*|image: ${DOCKERHUB_REPO}:${IMAGE_TAG}|" devops/deployments/${SERVICE}/${DEPLOYMENT_FILE}
+                    sed -i "s|image: ${DOCKERHUB_REPO}:.*|image: ${DOCKERHUB_REPO}:${IMAGE_TAG}|" ${DEPLOYMENT_FILE}
                 """
+                }
+
                 // Commit and push file changes to github.
                 sh "git diff ${DEPLOYMENT_FILE} || true"
                 withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
