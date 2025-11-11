@@ -19,6 +19,8 @@ pipeline {
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
         GITHUB_USER = credentials('github-creds')
         VERSION_FILE = 'VERSION'
+        DOCKERHUB_REPO = "ranenachiket07/app-${SERVICE}"
+        DEPLOYMENT_FILE = "${SERVICE}-deployment.yaml"
     }
 
     stages {
@@ -82,20 +84,26 @@ pipeline {
 
     post {
         success {
-            echo "✅ Build succeeded — committing VERSION file update"
+            echo "✅ Build succeeded — committing VERSION file update and deployment file image tag update."
             dir("apps/${params.SERVICE}") {
+                // Write version only after success
                 script {
-                    // Write version only after success
                     writeFile file: env.VERSION_FILE, text: "${env.IMAGE_TAG}\n"
                 }
+                // Updating the deployment file image tag.
+                sh """
+                    sed -i "s|image: ${DOCKERHUB_REPO}:.*|image: ${REPO}:${IMAGE_TAG}|" ${DEPLOYMENT_FILE}
+                """
+                // Commit and push file changes to github.
+                sh "git diff ${DEPLOYMENT_FILE} || true"
                 withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                     sh '''#!/bin/bash
                       git config --global --add safe.directory "$PWD"
                       git config user.email "jenkins@local"
                       git config user.name "Jenkins CI"
                       git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/ranenachiket/k8s-app.git
-                      git add VERSION
-                      git commit -m "Bump version to $(cat VERSION) [ci skip]" || true
+                      git add ${VERSION_FILE} ${DEPLOYMENT_FILE}
+                      git commit -m "Bump version to $(cat VERSION) [ci skip] and update deployment file image tag" || true
                       git push origin HEAD:main || true
                     '''
                 }
