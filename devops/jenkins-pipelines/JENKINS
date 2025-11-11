@@ -31,23 +31,25 @@ pipeline {
 
         stage('Increment ${params.SERVICE} Version') {
             steps {
-                script {
-                    // Read current version (default to v0.0.0 if missing)
-                    def versionFile = fileExists(env.VERSION_FILE) ? readFile(env.VERSION_FILE).trim() : 'v0.0.0'
-                    def (major, minor, patch) = versionFile.replace('v','').tokenize('.').collect { it.toInteger() }
+                dir("apps/${params.SERVICE}") {
+                    script {
+                        // Read current version (default to v0.0.0 if missing)
+                        def versionFile = fileExists(env.VERSION_FILE) ? readFile(env.VERSION_FILE).trim() : 'v0.0.0'
+                        def (major, minor, patch) = versionFile.replace('v','').tokenize('.').collect { it.toInteger() }
 
-                    // Increment based on dropdown
-                    if (params.VERSION_BUMP == 'major') {
-                        major += 1; minor = 0; patch = 0
-                    } else if (params.VERSION_BUMP == 'minor') {
-                        minor += 1; patch = 0
-                    } else {
-                        patch += 1
+                        // Increment based on dropdown
+                        if (params.VERSION_BUMP == 'major') {
+                            major += 1; minor = 0; patch = 0
+                        } else if (params.VERSION_BUMP == 'minor') {
+                            minor += 1; patch = 0
+                        } else {
+                            patch += 1
+                        }
+
+                        def newVersion = "v${major}.${minor}.${patch}"
+                        echo "🔢 New version: ${newVersion}"
+                        env.IMAGE_TAG = newVersion
                     }
-
-                    def newVersion = "v${major}.${minor}.${patch}"
-                    echo "🔢 New version: ${newVersion}"
-                    env.IMAGE_TAG = newVersion
                 }
             }
         }
@@ -61,18 +63,20 @@ pipeline {
         stage('Push version file to github') {
             steps {
                 dir("apps/${params.SERVICE}") {
-                    // Write updated version to file and commit
-                    writeFile file: env.VERSION_FILE, text: newVersion + '\n'
-                    checkout scm
-                    sh '''
-                      git config --global --add safe.directory "$PWD"
-                      git config user.email "jenkins@local"
-                      git config user.name "Jenkins"
-                      git remote set-url origin ${GITHUB_REPO}
-                      git add VERSION
-                      git commit -m "Bump version to ${newVersion}" || true
-                      git push origin HEAD:main || true
-                    '''
+                    dir("apps/${params.SERVICE}") {
+                        // Write updated version to file and commit
+                        writeFile file: env.VERSION_FILE, text: newVersion + '\n'
+                        checkout scm
+                        sh '''
+                          git config --global --add safe.directory "$PWD"
+                          git config user.email "jenkins@local"
+                          git config user.name "Jenkins"
+                          git remote set-url origin ${GITHUB_REPO}
+                          git add VERSION
+                          git commit -m "Bump version to ${newVersion}" || true
+                          git push origin HEAD:main || true
+                        '''
+                    }
                 }
             }
         }
