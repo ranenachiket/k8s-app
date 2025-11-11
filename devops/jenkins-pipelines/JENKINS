@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'SERVICE',
+            choices: ['orders', 'notifications', 'payments'],
+            description: 'Select which app to build from the repo'
+        )
+    }
+
+    environment {
+
+
+        GITHUB_REPO = 'https://github.com/ranenachiket/k8s-app.git'
+        DOCKERHUB_USER = 'ranenachiket07'
+        IMAGE_TAG = "v${env.BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Clone code repository from github') {
+            steps {
+                git branch: 'main',
+                    url: "${env.GITHUB_REPO}",
+                    credentialsId: 'github-k8s-repo-access'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir("${params.SERVICE}") {
+                    script {
+                        echo "📦 Building Docker image for ${params.SERVICE}"
+                        sh "docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
+                    }
+                }
+            }
+        }
+
+        stage('Login and Push to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker logout || true'
+        }
+        success {
+            echo "✅ Successfully built and pushed ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG}"
+        }
+    }
+}
