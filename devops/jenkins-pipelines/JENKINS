@@ -73,8 +73,7 @@ pipeline {
                     sh '''#!/bin/bash
                         echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
                         docker push ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG}
-                        docker tag ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_CREDS_USR}/${SERVICE}:latest
-                        docker push ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:latest
+                        docker rmi ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG}
                         docker logout
                     '''
                 }
@@ -104,7 +103,7 @@ pipeline {
                       git config user.name "Jenkins CI"
                       git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/ranenachiket/k8s-app.git
                       git add ${VERSION_FILE} ${DEPLOYMENT_FILE}
-                      git commit -m "Bump version to $(cat VERSION) [ci skip] and update deployment file image tag" || true
+                      git commit -m "Bump version to $(cat VERSION_FILE) [ci skip] and update deployment file image tag" || true
                       git push origin HEAD:main || true
                     '''
                 }
