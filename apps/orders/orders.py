@@ -132,10 +132,6 @@ def orders_get(order_id):
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/requests', methods=['GET'])
-def orders_all():
-    pass
-
 
 @app.route('/count/<count>', methods=['GET'])
 def orders_all(count):
