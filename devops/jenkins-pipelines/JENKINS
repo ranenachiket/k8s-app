@@ -16,7 +16,7 @@ pipeline {
 
     environment {
         GITHUB_REPO = 'https://github.com/ranenachiket/k8s-app.git'
-        DOCKERHUB_USER = credentials('dockerhub-creds')
+        DOCKERHUB_CREDS = credentials('dockerhub-creds')
         GITHUB_USER = credentials('github-creds')
         VERSION_FILE = 'VERSION'
     }
@@ -58,8 +58,8 @@ pipeline {
             steps {
                 dir("apps/${params.SERVICE}") {
                     sh '''#!/bin/bash
-                    echo "Building image ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG} in $(pwd)"
-                    docker build -t ${DOCKERHUB_USER}/app-${SERVICE}:${IMAGE_TAG} .
+                    echo "Building image ${DOCKER_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} in $(pwd)"
+                    docker build -t ${DOCKERHUB_CREDS_USR}/app-${SERVICE}:${IMAGE_TAG} .
                     '''
                 }
             }
