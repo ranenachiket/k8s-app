@@ -3,6 +3,11 @@ pipeline {
 
     parameters {
         choice(
+            name: 'VERSION_BUMP',
+            choices: ['patch', 'minor', 'major'],
+            description: 'Select which version part to bump for this build'
+        )
+        choice(
             name: 'SERVICE',
             choices: ['orders', 'notifications', 'payments'],
             description: 'Select which app to build from the repo'
@@ -10,39 +15,71 @@ pipeline {
     }
 
     environment {
-
-
         GITHUB_REPO = 'https://github.com/ranenachiket/k8s-app.git'
         DOCKERHUB_USER = 'ranenachiket07'
-        IMAGE_TAG = "v${env.BUILD_NUMBER}"
+        VERSION_FILE = 'VERSION'
     }
 
     stages {
-        stage('Clone code repository from github') {
+        stage('Clone Repository') {
             steps {
                 git branch: 'main',
                     url: "${env.GITHUB_REPO}",
-                    credentialsId: 'github-k8s-repo-access'
+                    credentialsId: 'github-creds'
+            }
+        }
+
+        stage('Increment Version') {
+            steps {
+                script {
+                    // Read current version (default to v0.0.0 if missing)
+                    def versionFile = fileExists(env.VERSION_FILE) ? readFile(env.VERSION_FILE).trim() : 'v0.0.0'
+                    def (major, minor, patch) = versionFile.replace('v','').tokenize('.').collect { it.toInteger() }
+
+                    // Increment based on dropdown
+                    if (params.VERSION_BUMP == 'major') {
+                        major += 1; minor = 0; patch = 0
+                    } else if (params.VERSION_BUMP == 'minor') {
+                        minor += 1; patch = 0
+                    } else {
+                        patch += 1
+                    }
+
+                    def newVersion = "v${major}.${minor}.${patch}"
+                    echo "🔢 New version: ${newVersion}"
+
+                    // Save back to file and commit (optional)
+                    writeFile file: env.VERSION_FILE, text: newVersion + '\n'
+                    sh '''
+                      git config user.email "jenkins@local"
+                      git config user.name "Jenkins"
+                      git add VERSION
+                      git commit -m "Bump version to ${newVersion}" || true
+                      git push origin HEAD:main || true
+                    '''
+
+                    env.IMAGE_TAG = newVersion
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 dir("${params.SERVICE}") {
-                    script {
-                        echo "📦 Building Docker image for ${params.SERVICE}"
-                        sh "docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
-                    }
+                    sh "docker build -t ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG} ."
                 }
             }
         }
 
-        stage('Login and Push to DockerHub') {
+        stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-token', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
                     sh """
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG}
+                        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+                        docker push ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG}
+                        docker tag ${DOCKERHUB_USER}/${SERVICE}:${IMAGE_TAG} ${DOCKERHUB_USER}/${SERVICE}:latest
+                        docker push ${DOCKERHUB_USER}/${SERVICE}:latest
+                        docker logout
                     """
                 }
             }
@@ -50,11 +87,11 @@ pipeline {
     }
 
     post {
-        always {
-            sh 'docker logout || true'
-        }
         success {
             echo "✅ Successfully built and pushed ${DOCKERHUB_USER}/${params.SERVICE}:${IMAGE_TAG}"
+        }
+        failure {
+            echo "❌ Build failed."
         }
     }
 }
