@@ -1,14 +1,11 @@
 # This will be the kafka producers server
+from prometheus_client import Counter, Summary, generate_latest, CONTENT_TYPE_LATEST
 from confluent_kafka import Producer, KafkaException
 from flask import Flask, request, Response, jsonify
 from random import choice
-import uuid, time
-import json
-import psycopg2
-import psycopg2.extras
-import logging
-import sys
+import uuid, time, json, psycopg2, psycopg2.extras, logging, sys
 sys.stdout.flush()
+
 
 app = Flask(__name__)
 
@@ -19,8 +16,6 @@ log_handler.setFormatter(formatter)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 logger.addHandler(log_handler)
-
-
 
 kafka_endpoint = 'kafka-0.kafka-headless.kafka.svc.cluster.local:9092'
 producer_config = {
@@ -33,6 +28,37 @@ producer = Producer(producer_config)
 logger.info('Initializing producer complete.')
 print('Initializing producer complete.')
 
+DB_QUERY_COUNT = Counter('db_query_total', 'Total number of DB queries executed')
+DB_QUERY_DURATION = Summary('db_query_duration_seconds', 'Time taken for DB query execution')
+
+# Define global metrics
+REQUEST_COUNT = Counter(
+    'http_requests_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'http_status']
+)
+
+REQUEST_LATENCY = Summary(
+    'http_request_duration_seconds',
+    'Time taken to process HTTP requests',
+    ['endpoint']
+)
+
+def post_metrics(route):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter() # measure start time of request call
+            response = func(*args, **kwargs) # Execute the original function
+            elapsed = time.perf_counter() - start
+            status = response.status_code if isinstance(response, Response) else (
+                response[1] if isinstance(response, tuple) else 200)
+            REQUEST_COUNT.labels(request.method, route, status).inc() # Incrementing the HTTP request counter
+            REQUEST_LATENCY.labels(route).observe(elapsed) # Record the HTTP response time.
+            return response
+        wrapper.__name__ = func.__name__ # to avoid the AssertionError: View function mapping is overwriting an existing endpoint function: wrapper
+        return wrapper
+    return decorator
+
 
 def database_conn():
     # Postgres Config
@@ -43,20 +69,24 @@ def database_conn():
     PG_DATABASE = 'app'
 
     # Connect to Postgres
+    try:
+        logger.info(f'Connecting user "{PG_USER}" to database "{PG_DATABASE}" at "{PG_HOST}:{PG_PORT}"')
+        db_conn = psycopg2.connect(
+            host=PG_HOST,
+            port=PG_PORT,
+            user=PG_USER,
+            password=PG_PASSWORD,
+            dbname=PG_DATABASE
+        )
 
-    db_conn = psycopg2.connect(
-        host=PG_HOST,
-        port=PG_PORT,
-        user=PG_USER,
-        password=PG_PASSWORD,
-        dbname=PG_DATABASE
-    )
-    logger.info(f'Connecting to Database')
-    # cursor = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cursor = db_conn.cursor()
+        # cursor = db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor = db_conn.cursor()
+    except psycopg2.Error as msg:
+        logger.error(f'ERROR connecting user {PG_USER} to database {PG_DATABASE} at {PG_HOST} port {PG_PORT}: {msg}')
+    else:
+        logger.info(f'SUCCESS: Connected user {PG_USER} to database {PG_DATABASE} at {PG_HOST} port {PG_PORT}')
+        return db_conn, cursor
 
-    logger.info(f'Connected to Database')
-    return db_conn, cursor
 
 def kafka_delivery_report(err, msg):
     if err:
@@ -74,10 +104,11 @@ def kafka_publish(data_bytes):
         logger.info(f'Attempting to send order message to kafka endpoint {kafka_endpoint}')
         producer.produce(topic='orders', value=data_bytes, callback=kafka_delivery_report)
         logger.info(f'Flushing messages to kafka')
-        result = producer.flush(timeout=10)
+        # result = producer.flush(timeout=10) # expensive
+        result = producer.poll(0)
         logger.info(result)
-    except KafkaException as e:
-        logger.exception(f'Kafka exception: {e}')
+    except KafkaException as msg:
+        logger.exception(f'Kafka exception: {msg}')
         return 'FAILED: Orders sending to Kafka failed', 500
     except KeyboardInterrupt:
         logger.error(f'ABORT: Aborted by user.')
@@ -85,104 +116,39 @@ def kafka_publish(data_bytes):
     else:
         logger.info(f'Flushed messages to kafka successfully')
 
+def run_db_query(query):
+    db_conn, db_cursor = database_conn()
+    try:
+        start = time.perf_counter()
+        db_cursor.execute(query)
+    except psycopg2.Error as msg:
+        logger.error(f'ERROR: Failed to run the query {query}: {msg}')
+    else:
+        data = db_cursor.fetchall()  # Returns Tuple of values
+        end = time.perf_counter()
+        DB_QUERY_COUNT.inc()
+        DB_QUERY_DURATION.observe(end - start)
+        return data
+    finally:
+        db_conn.close()
+        db_cursor.close()
+
+def parse_db_data(data):
+    if not data:
+        return jsonify({"error": "Order not found"}), 404
+    # List of dictionaries
+    order_data = [
+        {"order_id": row[1], "username": row[2], "item": row[3], "quantity": row[4]}
+        for row in data
+    ]
+    return jsonify(order_data), 200
+
 @app.route('/health')
 def health():
     return {'status': 'ok'}, 200
 
-@app.route('/data', methods=['POST'])
-def orders_post():
-    order = request.get_json()
-    if order and 'user' in order and 'item' in order and 'quantity' in order:
-        order_id = f'{int(time.time())}-{uuid.uuid4().hex[:8]}',
-        order['order_id'] = order_id[0]
-        logger.info(f"Received JSON data: {order}")
-        json_data = json.dumps(order)
-        data_bytes = json_data.encode('utf-8')
-        kafka_publish(data_bytes)
-        return Response(order_id, status=200)
-    return f"No JSON data received or Malformed json received: {order}", 400
-
-@app.route('/order/<order_id>', methods=['GET'])
-def orders_get(order_id):
-    try:
-        conn, cursor = database_conn()
-        # cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-        # Fetch row by ID
-        cursor.execute(f"SELECT * FROM orders WHERE order_id = '{order_id}';")
-        order = cursor.fetchone() # Returns Tuple of values
-
-        # Close the db connections cleanly
-        cursor.close()
-        conn.close()
-
-        if order is None:
-            return jsonify({"error": "Order not found"}), 404
-
-        # Convert to dictionary
-        order_data = {
-            "order_id": order[1],
-            "username": order[2],
-            "item": order[3],
-            "quantity": order[4],
-        }
-        return jsonify(order_data), 200
-
-    except Exception as e:
-        print("Error:", e)
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/count/<count>', methods=['GET'])
-def orders_all(count):
-    try:
-        conn, cursor = database_conn()
-        # cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-        # Fetch row by ID
-        if count == 'all':
-            query = f"SELECT * FROM orders;"
-        else:
-            query = f"SELECT * FROM orders ORDER BY created_at DESC LIMIT {count};"
-
-        logger.info(f'Fetching from the database, Executing the db query.')
-        cursor.execute(query)
-        orders = cursor.fetchall() # Returns Tuple of values
-        logger.info(f'Fetching from the database successful.')
-
-        # Close the db connections cleanly
-        cursor.close()
-        conn.close()
-
-        if orders is None:
-            return jsonify({"error": "Order not found"}), 404
-
-        # Convert to list of dict
-        logger.info(f'Formatting and returning data in json.')
-
-        ## Time consuming process... needs to be optimized.
-        # # Convert to list of dicts
-        # latest_orders = [dict(order) for order in orders]
-        # return jsonify(latest_orders), 200
-
-        # Following will be a slow process and will black the get request until timeout.
-        orders_list = list()
-        for order in orders:
-            order_data = {
-                "order_id": order[1],
-                "username": order[2],
-                "item": order[3],
-                "quantity": order[4],
-            }
-            orders_list.append(order_data)
-        return jsonify(orders_list), 200
-
-    except Exception as e:
-        logger.error("Error:", e)
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route('/random', methods=['GET'])
+@post_metrics('/random')
 def orders_random():
     order_id = f'{int(time.time())}-{uuid.uuid4().hex[:8]}'
     order = {
@@ -196,6 +162,55 @@ def orders_random():
     kafka_publish(data_bytes)
     return Response(order_id, status=200)
 
+@app.route('/data', methods=['POST'])
+@post_metrics('/data')
+def orders_post():
+    order = request.get_json()
+    if order and 'user' in order and 'item' in order and 'quantity' in order:
+        order_id = f'{int(time.time())}-{uuid.uuid4().hex[:8]}',
+        order['order_id'] = order_id[0]
+        logger.info(f"Received JSON data: {order}")
+        json_data = json.dumps(order)
+        data_bytes = json_data.encode('utf-8')
+        kafka_publish(data_bytes)
+        return Response(order_id, status=200)
+    return Response(f"No JSON data received or Malformed json received: {order}", 400)
+
+@app.route('/order/<order_id>', methods=['GET'])
+@post_metrics('/order')
+def orders_get(order_id):
+    try:
+        logger.info(f'Fetching order by id {order_id} from the database, Executing the db query.')
+        query = f"SELECT * FROM orders WHERE order_id = '{order_id}';"
+        data = run_db_query(query)
+    except Exception as e:
+        print("Error:", e)
+        return Response(f'ERROR: {str(e)}', 500)
+    else:
+        logger.info(f'Fetched data from the database successfully.')
+        return parse_db_data(data)
+
+@app.route('/count/<count>', methods=['GET'])
+@post_metrics('/count')
+def orders_count(count):
+    if not isinstance(count, int) or count < 1:
+        logger.error(f'Invalid count: {count}')
+        return Response(f'Invalid count: {count}', 400)
+    else:
+        try:
+            logger.info(f'Fetching {count} entries from the database, Executing the db query.')
+            query = f"SELECT * FROM orders ORDER BY created_at DESC LIMIT {count};"
+            data = run_db_query(query)
+        except Exception as msg:
+            logger.error("Error:", msg)
+            return Response(f'ERROR: {str(msg)}', 500)
+        else:
+            logger.info(f'Fetched data from the database successfully.')
+            return parse_db_data(data)
+
+@app.route("/metrics")
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 
 if __name__ == '__main__':
