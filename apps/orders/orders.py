@@ -197,12 +197,12 @@ def orders_count(count):
         count = int(count)
     except TypeError as msg:
         logger.error(f'ERROR: count {count}, Please provide valid count non-zero integer value')
-        Response(f'Invalid count: {count}', 400)
+        return Response(f'Invalid count: {count}', 400)
     else:
         count = int(count)
         if count < 1:
             logger.error(f'ERROR: count {count}, Please provide valid count non-zero integer value')
-            Response(f'Invalid count: {count}', 400)
+            return Response(f'Invalid count: {count}', 400)
         else:
             try:
                 logger.info(f'Fetching {count} entries from the database, Executing the db query.')
