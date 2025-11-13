@@ -42,7 +42,7 @@ DB_QUERY_TIME_DURATION = Histogram(
     'db_query_time_duration_seconds',
     'Histogram of database query execution time',
     ['query_type'],
-    buckets=[0.1, 0.3, 0.5, 1, 2, 5, 10, 15, 20])
+    buckets=[1, 5, 10, 12, 15, 17, 20, 25, 50])
 
 HTTP_REQUEST_TIME_DURATION = Histogram(
     'http_request_time_duration_seconds',
@@ -70,6 +70,7 @@ def post_metrics(route):
             start = time.perf_counter() # measure start time of request call
             response = func(*args, **kwargs) # Execute the original function
             elapsed = time.perf_counter() - start
+            logger.info(f'HTTP request took total of: {elapsed} seconds')
             status = response.status_code if isinstance(response, Response) else (
                 response[1] if isinstance(response, tuple) else 200)
             REQUEST_COUNT.labels(request.method, route, status).inc() # Incrementing the HTTP request counter
@@ -149,8 +150,8 @@ def run_db_query(query):
         end = time.perf_counter()
         DB_QUERY_COUNT.inc()
         DB_QUERY_DURATION.observe(end - start)
-        DB_QUERY_TIME_DURATION.labels(query).time()
-        logger.info(f'db query got executed in {end - start} time')
+        DB_QUERY_TIME_DURATION.labels(query).observe((end - start)/1000)
+        logger.info(f'db query got executed in {(end - start)/1000} ms')
         return data
     finally:
         db_conn.close()
