@@ -193,20 +193,27 @@ def orders_get(order_id):
 @app.route('/count/<count>', methods=['GET'])
 @post_metrics('/count')
 def orders_count(count):
-    if not isinstance(count, int) or count < 1:
-        logger.error(f'Invalid count: {count}')
-        return Response(f'Invalid count: {count}', 400)
+    try:
+        count = int(count)
+    except TypeError as msg:
+        logger.error(f'ERROR: count {count}, Please provide valid count non-zero integer value')
+        Response(f'Invalid count: {count}', 400)
     else:
-        try:
-            logger.info(f'Fetching {count} entries from the database, Executing the db query.')
-            query = f"SELECT * FROM orders ORDER BY created_at DESC LIMIT {count};"
-            data = run_db_query(query)
-        except Exception as msg:
-            logger.error("Error:", msg)
-            return Response(f'ERROR: {str(msg)}', 500)
+        count = int(count)
+        if count < 1:
+            logger.error(f'ERROR: count {count}, Please provide valid count non-zero integer value')
+            Response(f'Invalid count: {count}', 400)
         else:
-            logger.info(f'Fetched data from the database successfully.')
-            return parse_db_data(data)
+            try:
+                logger.info(f'Fetching {count} entries from the database, Executing the db query.')
+                query = f"SELECT * FROM orders ORDER BY created_at DESC LIMIT {count};"
+                data = run_db_query(query)
+            except Exception as msg:
+                logger.error("Error:", msg)
+                return Response(f'ERROR: {str(msg)}', 500)
+            else:
+                logger.info(f'Fetched data from the database successfully.')
+                return parse_db_data(data)
 
 @app.route("/metrics")
 def metrics():
