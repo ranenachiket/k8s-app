@@ -1,5 +1,5 @@
 # This will be the kafka producers server
-from prometheus_client import Counter, Summary, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Summary, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from confluent_kafka import Producer, KafkaException
 from flask import Flask, request, Response, jsonify
 from random import choice
@@ -9,13 +9,21 @@ sys.stdout.flush()
 
 app = Flask(__name__)
 
+log_format = '%(asctime)s - %(levelname)s - %(message)s'
+log_level = logging.DEBUG
+
 log_handler = logging.FileHandler('orders.log', encoding='utf-8')
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(log_format)
 log_handler.setFormatter(formatter)
 
+console_handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter(log_format)
+console_handler.setFormatter(formatter)
+
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(log_level)
 logger.addHandler(log_handler)
+logger.addHandler(console_handler)
 
 kafka_endpoint = 'kafka-0.kafka-headless.kafka.svc.cluster.local:9092'
 producer_config = {
@@ -30,6 +38,18 @@ print('Initializing producer complete.')
 
 DB_QUERY_COUNT = Counter('db_query_total', 'Total number of DB queries executed')
 DB_QUERY_DURATION = Summary('db_query_duration_seconds', 'Time taken for DB query execution')
+DB_QUERY_TIME_DURATION = Histogram(
+    'db_query_time_duration_seconds',
+    'Histogram of database query execution time',
+    ['query_type'],
+    buckets=[0.1, 0.3, 0.5, 1, 2, 5, 10, 15, 20])
+
+HTTP_REQUEST_TIME_DURATION = Histogram(
+    'http_request_time_duration_seconds',
+    'Histogram of HTTP request duration',
+    ['method', 'endpoint', 'status'],
+    buckets=[0.1, 0.3, 0.5, 1, 2, 5, 10, 15, 20]
+)
 
 # Define global metrics
 REQUEST_COUNT = Counter(
@@ -54,6 +74,7 @@ def post_metrics(route):
                 response[1] if isinstance(response, tuple) else 200)
             REQUEST_COUNT.labels(request.method, route, status).inc() # Incrementing the HTTP request counter
             REQUEST_LATENCY.labels(route).observe(elapsed) # Record the HTTP response time.
+            HTTP_REQUEST_TIME_DURATION.labels(method=request.method, endpoint=route, status=status).observe(elapsed)
             return response
         wrapper.__name__ = func.__name__ # to avoid the AssertionError: View function mapping is overwriting an existing endpoint function: wrapper
         return wrapper
@@ -128,6 +149,8 @@ def run_db_query(query):
         end = time.perf_counter()
         DB_QUERY_COUNT.inc()
         DB_QUERY_DURATION.observe(end - start)
+        DB_QUERY_TIME_DURATION.labels(query).time()
+        logger.info(f'db query got executed in {end - start} time')
         return data
     finally:
         db_conn.close()
