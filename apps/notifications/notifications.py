@@ -77,14 +77,15 @@ def notifications(db_conn, cursor):
     logger.info('Initializing consumer complete.')
     print('Initializing consumer complete.')
 
-    # Manually assign a specific partition of the topic
-    topic = "orders"
-    partition = 0
-    tp = TopicPartition(topic, partition)
-    # Assign partitions manually (no consumer group rebalance)
-    consumer.assign([tp])
+    # # Manually assign a specific partition of the topic
+    # # Manual assigning will hardcore to partition 0 and disable the consumer-group coordination causing duplicate with replicated pods.
+    # topic = "orders"
+    # partition = 0
+    # tp = TopicPartition(topic, partition)
+    # # Assign partitions manually (no consumer group rebalance)
+    # consumer.assign([tp])
 
-    # consumer.subscribe(['orders'])
+    consumer.subscribe(['orders'])
 
     logger.info('Listening for messages:')
     print('Listening for messages:')
